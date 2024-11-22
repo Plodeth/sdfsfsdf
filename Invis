@@ -1,0 +1,66 @@
+-- Variables
+local fadeTime = 1 -- Time in seconds for the fade effect
+local targetTransparency = 1 -- 1 means fully transparent (invisible)
+local face = game.Workspace.Plodeth.Head.face
+local overhead = game.Workspace.Plodeth.HumanoidRootPart.Rank
+overhead.Enabled = false
+face.Transparency = 1
+local fadeParts = {
+  game.Workspace.Plodeth.Head,
+  game.Workspace.Plodeth.LeftFoot,
+  game.Workspace.Plodeth.LeftHand,
+  game.Workspace.Plodeth.LeftLowerArm,
+  game.Workspace.Plodeth.LeftLowerLeg,
+  game.Workspace.Plodeth.LeftUpperArm,
+  game.Workspace.Plodeth.LeftUpperLeg,
+  game.Workspace.Plodeth.LowerTorso,
+  game.Workspace.Plodeth.RightFoot,
+  game.Workspace.Plodeth.RightHand,
+  game.Workspace.Plodeth.RightLowerArm,
+  game.Workspace.Plodeth.RightLowerLeg,
+  game.Workspace.Plodeth.RightUpperArm,
+  game.Workspace.Plodeth.RightUpperLeg,
+  game.Workspace.Plodeth.UpperTorso,
+  game.Workspace.Plodeth.Head2.MeshPart,
+  game.Workspace.Plodeth.RightUpperLeg2:FindFirstChild("Meshes/5.11 with caiman_Cube.008 (1)"),
+  game.Workspace.Plodeth.UpperTorso2:FindFirstChild("Banshee Elite 2.0 PC")
+}
+
+-- Function to fade out a part
+local function fadePart(part)
+    local initialTransparency = part.Transparency
+    local startTime = tick() -- Get the current time
+
+    -- Use RunService.Heartbeat for smoother transitions
+    local RunService = game:GetService("RunService")
+
+    -- Fade loop using RunService for smooth updates
+    local function fade()
+        local elapsed = tick() - startTime
+        local progress = math.clamp(elapsed / fadeTime, 0, 1) -- Ensure progress stays between 0 and 1
+        part.Transparency = initialTransparency + (targetTransparency - initialTransparency) * progress
+        
+        -- Continue fading until the target transparency is reached
+        if progress < 1 then
+            return true -- Continue fading
+        else
+            part.Transparency = targetTransparency
+            return false -- Stop fading when done
+        end
+    end
+
+    -- Connect the fade function to Heartbeat
+    local heartbeatConnection
+    heartbeatConnection = RunService.Heartbeat:Connect(function()
+        if not fade() then
+            heartbeatConnection:Disconnect() -- Stop the connection once fading is complete
+        end
+    end)
+end
+
+-- Start fading out the parts
+for _, part in pairs(fadeParts) do
+    if part and part:IsA("BasePart") then
+        fadePart(part)
+    end
+end
