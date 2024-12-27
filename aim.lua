@@ -10,6 +10,8 @@ local UserInputService = game:GetService("UserInputService")
 local camera = workspace.CurrentCamera -- Reference to the player's camera
 local teams = game:GetService("Teams")
 
+local currentHighlight = nil -- Store the current target's highlight
+
 -- Function to find the nearest target
 local function getNearestTarget()
     local nearest = nil
@@ -61,7 +63,30 @@ local function updateCamera()
                 -- Update the camera's CFrame to look at the target position
                 local cameraPosition = camera.CFrame.Position
                 camera.CFrame = CFrame.lookAt(cameraPosition, targetPosition)
+
+                -- Highlight the target player
+                if currentHighlight then
+                    currentHighlight.Enabled = false
+                end
+
+                -- Create and enable the highlight
+                local highlight = target:FindFirstChildOfClass("Highlight")
+                if not highlight then
+                    highlight = Instance.new("Highlight")
+                    highlight.Parent = target
+                    highlight.Adornee = target
+                    highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Red highlight
+                    highlight.OutlineColor = Color3.fromRGB(255, 255, 0) -- Yellow outline
+                end
+                highlight.Enabled = true
+                currentHighlight = highlight
             end
+        end
+    else
+        -- Disable highlight when aim assist is turned off
+        if currentHighlight then
+            currentHighlight.Enabled = false
+            currentHighlight = nil
         end
     end
 end
@@ -89,7 +114,6 @@ end)
 -- UI Setup
 local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 screenGui.Name = "AimAssistGUI"
-screenGui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", screenGui)
 frame.Size = UDim2.new(0, 200, 0, 100)
