@@ -1,0 +1,24 @@
+--// sigma sigma boy sigma boy
+--// Milkm4n on Discord
+
+local VirtualUser = game:service'VirtualUser'
+local StarterGui = game:GetService("StarterGui")
+
+function notify(Title, Text, Duration)
+    StarterGui:SetCore("SendNotification", {
+        Title = Title;
+        Text = Text;
+        Duration = Duration;
+    })
+end
+
+notify("ANTI-AFK","ANTI-AFK has been Enabled - Made by Milkm4n", 10)
+
+
+game:GetService("Players").LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+    
+    -- Display a notification
+    notify("Anti-AFK", "Anti-AFK has prevented you from being kicked", 5)
+end)
