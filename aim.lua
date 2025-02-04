@@ -1,5 +1,5 @@
 local player = game.Players.LocalPlayer
-local range = 50 -- Range for aim assist
+local range = 100 -- Default Range for aim assist
 local aimAssistEnabled = false -- Toggle state
 local ignoreSameTeam = false -- Toggle state for ignoring players on the same team
 local aimHead = true
@@ -11,6 +11,7 @@ local camera = workspace.CurrentCamera -- Reference to the player's camera
 local teams = game:GetService("Teams")
 
 local currentHighlight = nil -- Store the current target's highlight
+local uiVisible = true -- State to track whether the UI is visible
 
 -- Function to find the nearest target
 local function getNearestTarget()
@@ -76,7 +77,7 @@ local function updateCamera()
                     highlight.Parent = target
                     highlight.Adornee = target
                     highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Red highlight
-                    highlight.OutlineColor = Color3.fromRGB(255, 255, 0) -- Yellow outline
+                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- Yellow outline
                 end
                 highlight.Enabled = true
                 currentHighlight = highlight
@@ -103,6 +104,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if input.KeyCode == Enum.KeyCode.T then
             ignoreSameTeam = not ignoreSameTeam
         end
+        
+        -- Toggle UI visibility with the 'P' key
+        if input.KeyCode == Enum.KeyCode.P then
+            uiVisible = not uiVisible
+            screenGui.Enabled = uiVisible
+        end
     end
 end)
 
@@ -115,20 +122,66 @@ end)
 local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 screenGui.Name = "AimAssistGUI"
 screenGui.ResetOnSpawn = false
+screenGui.Enabled = uiVisible -- Initial state of UI is visible
 
 local frame = Instance.new("Frame", screenGui)
-frame.Size = UDim2.new(0, 200, 0, 100)
+frame.Size = UDim2.new(0, 200, 0, 150)
 frame.Position = UDim2.new(0.5, -100, 0.8, 0)
 frame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
 frame.BorderSizePixel = 0
 
 local toggleButton = Instance.new("TextLabel", frame)
-toggleButton.Size = UDim2.new(1, 0, 1, 0)
+toggleButton.Size = UDim2.new(1, 0, 0.3, 0)
 toggleButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
 toggleButton.TextColor3 = Color3.new(1, 1, 1)
 toggleButton.Font = Enum.Font.SourceSans
 toggleButton.TextSize = 16
 toggleButton.TextWrapped = true
+
+-- Slider for range control
+local rangeSlider = Instance.new("Frame", frame)
+rangeSlider.Size = UDim2.new(1, -20, 0.3, 0)
+rangeSlider.Position = UDim2.new(0, 10, 0.3, 10)
+rangeSlider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+rangeSlider.BorderSizePixel = 0
+
+local sliderButton = Instance.new("Frame", rangeSlider)
+sliderButton.Size = UDim2.new(0, 10, 1, 0)
+sliderButton.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+
+local sliderValue = Instance.new("TextLabel", frame)
+sliderValue.Size = UDim2.new(1, 0, 0.2, 0)
+sliderValue.Position = UDim2.new(0, 0, 0.6, 0)
+sliderValue.BackgroundTransparency = 1
+sliderValue.TextColor3 = Color3.fromRGB(255, 255, 255)
+sliderValue.Font = Enum.Font.SourceSans
+sliderValue.TextSize = 16
+sliderValue.Text = "Range: " .. range
+
+-- Flag to track if the slider is being dragged
+local isDragging = false
+
+-- Update range when the slider is moved
+sliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+    end
+end)
+
+sliderButton.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local newPos = math.clamp((input.Position.X - rangeSlider.AbsolutePosition.X) / rangeSlider.AbsoluteSize.X, 0, 1)
+        sliderButton.Position = UDim2.new(newPos, 0, 0, 0)
+        range = math.floor(newPos * 100) -- Update the range based on slider position
+        sliderValue.Text = "Range: " .. range
+    end
+end)
 
 -- Update the UI text based on the current toggle state
 local function updateUIText()
