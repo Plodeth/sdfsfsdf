@@ -95,7 +95,7 @@ end
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not gameProcessed then
         -- Toggle Aim Assist
-        if input.KeyCode == Enum.KeyCode.E then
+        if input.KeyCode == Enum.KeyCode.L then
             aimAssistEnabled = not aimAssistEnabled
         end
         
@@ -133,11 +133,11 @@ toggleButton.TextWrapped = true
 -- Update the UI text based on the current toggle state
 local function updateUIText()
     if aimAssistEnabled == false and ignoreSameTeam == false then
-        toggleButton.Text = "Press E to turn on Aim Assist\nPress T to turn on Same Team Ignore"
+        toggleButton.Text = "Press L to turn on Aim Assist\nPress T to turn on Same Team Ignore"
     elseif aimAssistEnabled == true and ignoreSameTeam == false then
-        toggleButton.Text = "Press E to turn off Aim Assist\nPress T to turn on Same Team Ignore"
+        toggleButton.Text = "Press L to turn off Aim Assist\nPress T to turn on Same Team Ignore"
     elseif aimAssistEnabled == true and ignoreSameTeam == true then
-        toggleButton.Text = "Press E to turn off Aim Assist\nPress T to turn off Same Team Ignore"
+        toggleButton.Text = "Press L to turn off Aim Assist\nPress T to turn off Same Team Ignore"
     end
 end
 
