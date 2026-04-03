@@ -1,90 +1,108 @@
-local player = game.Players.LocalPlayer
-local range = 100 -- Default Range for aim assist
-local aimAssistEnabled = false -- Toggle state
-local ignoreSameTeam = false -- Toggle state for ignoring players on the same team
-local aimHead = true
+--[[ 
+    Integrated Aim Assist with FOV Circle
+    Controls:
+    [L] - Toggle Aim Assist
+    [T] - Toggle Team Ignore
+    [P] - Toggle Menu Visibility
+]]
 
--- Services
+local player = game.Players.LocalPlayer
+local camera = workspace.CurrentCamera
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local camera = workspace.CurrentCamera -- Reference to the player's camera
-local teams = game:GetService("Teams")
 
-local currentHighlight = nil -- Store the current target's highlight
-local uiVisible = true -- State to track whether the UI is visible
+-- Configuration
+local range = 100 -- This is the FOV Circle Radius
+local aimAssistEnabled = false
+local ignoreSameTeam = false
+local aimHead = true
+local uiVisible = true
+local currentHighlight = nil
 
--- Function to find the nearest target
-local function getNearestTarget()
+-- FOV Circle Drawing
+local fovCircle = Drawing.new("Circle")
+fovCircle.Visible = true
+fovCircle.Radius = range
+fovCircle.Color = Color3.fromRGB(255, 255, 255)
+fovCircle.Thickness = 1
+fovCircle.Filled = false
+fovCircle.Transparency = 1
+fovCircle.Position = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+
+-- Function to find target closest to the center of the FOV
+local function getTargetInFOV()
     local nearest = nil
-    local shortestDistance = range
+    local shortestMouseDistance = range -- Max distance is the radius of the circle
+
+    local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
 
     for _, obj in pairs(workspace:GetChildren()) do
-        -- Only check models with Humanoid and are not the player
         if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj ~= player.Character then
             local humanoid = obj:FindFirstChild("Humanoid")
-            local humanRootPart = obj:FindFirstChild("HumanoidRootPart")
-            if humanoid and humanRootPart then
-                -- Ignore dead players (health <= 0)
-                if humanoid.Health > 0 then
-                    -- Ignore players on the same team if toggle is enabled
-                    local targetPlayer = game.Players:GetPlayerFromCharacter(obj)
-                    if ignoreSameTeam and targetPlayer and targetPlayer.Team == player.Team then
-                        -- Skip this iteration if the player is on the same team
-                        continue
-                    end
+            local hrp = obj:FindFirstChild("HumanoidRootPart")
+            
+            if humanoid and hrp and humanoid.Health > 0 then
+                -- Team Check
+                local targetPlayer = game.Players:GetPlayerFromCharacter(obj)
+                if ignoreSameTeam and targetPlayer and targetPlayer.Team == player.Team then
+                    continue
+                end
 
-                    local distance = (humanRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
-                    if distance < shortestDistance then
-                        shortestDistance = distance
+                -- Convert 3D position to 2D Screen position
+                local screenPos, onScreen = camera:WorldToViewportPoint(hrp.Position)
+
+                if onScreen then
+                    local mouseDistance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    
+                    if mouseDistance < shortestMouseDistance then
+                        shortestMouseDistance = mouseDistance
                         nearest = obj
                     end
                 end
             end
         end
     end
-
     return nearest
 end
 
--- Function to update the camera to follow the target
-local function updateCamera()
+-- Update Loop
+local function update()
+    -- Sync Circle to Screen Center and Range Slider
+    fovCircle.Position = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    fovCircle.Radius = range
+    fovCircle.Visible = uiVisible
+
     if aimAssistEnabled then
-        local target = getNearestTarget()
+        local target = getTargetInFOV()
         if target then
-            local humanRootPart = target:FindFirstChild("HumanoidRootPart")
             local head = target:FindFirstChild("Head")
-            if humanRootPart and head then
-                local targetPosition
-                if aimHead then
-                    targetPosition = head.Position -- Aim at the head
-                else
-                    targetPosition = humanRootPart.Position + Vector3.new(0, 0.5, 0) -- Aim at the body
-                end
+            local hrp = target:FindFirstChild("HumanoidRootPart")
+            
+            if hrp and head then
+                local targetPosition = aimHead and head.Position or (hrp.Position + Vector3.new(0, 0.5, 0))
 
-                -- Update the camera's CFrame to look at the target position
-                local cameraPosition = camera.CFrame.Position
-                camera.CFrame = CFrame.lookAt(cameraPosition, targetPosition)
+                -- Lock Camera
+                camera.CFrame = CFrame.lookAt(camera.CFrame.Position, targetPosition)
 
-                -- Highlight the target player
-                if currentHighlight then
+                -- Highlight logic
+                if currentHighlight and currentHighlight.Parent ~= target then
                     currentHighlight.Enabled = false
                 end
 
-                -- Create and enable the highlight
                 local highlight = target:FindFirstChildOfClass("Highlight")
                 if not highlight then
                     highlight = Instance.new("Highlight")
                     highlight.Parent = target
-                    highlight.Adornee = target
-                    highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Red highlight
-                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- Yellow outline
+                    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
                 end
                 highlight.Enabled = true
                 currentHighlight = highlight
             end
+        else
+            if currentHighlight then currentHighlight.Enabled = false end
         end
     else
-        -- Disable highlight when aim assist is turned off
         if currentHighlight then
             currentHighlight.Enabled = false
             currentHighlight = nil
@@ -92,109 +110,85 @@ local function updateCamera()
     end
 end
 
--- Toggle aim assist on/off
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed then
-        -- Toggle Aim Assist
-        if input.KeyCode == Enum.KeyCode.L then
-            aimAssistEnabled = not aimAssistEnabled
-        end
-        
-        -- Toggle Ignore Same Team
-        if input.KeyCode == Enum.KeyCode.T then
-            ignoreSameTeam = not ignoreSameTeam
-        end
-        
-        -- Toggle UI visibility with the 'P' key
-        if input.KeyCode == Enum.KeyCode.P then
-            uiVisible = not uiVisible
-            screenGui.Enabled = uiVisible
-        end
-    end
-end)
-
--- Continuously update the camera when aim assist is enabled
-RunService.RenderStepped:Connect(function()
-    updateCamera()
-end)
-
 -- UI Setup
 local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 screenGui.Name = "AimAssistGUI"
 screenGui.ResetOnSpawn = false
-screenGui.Enabled = uiVisible -- Initial state of UI is visible
+screenGui.Enabled = uiVisible
 
 local frame = Instance.new("Frame", screenGui)
-frame.Size = UDim2.new(0, 200, 0, 150)
-frame.Position = UDim2.new(0.5, -100, 0.8, 0)
-frame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+frame.Size = UDim2.new(0, 220, 0, 160)
+frame.Position = UDim2.new(0.5, -110, 0.75, 0)
+frame.BackgroundColor3 = Color3.new(0.05, 0.05, 0.05)
 frame.BorderSizePixel = 0
 
 local toggleButton = Instance.new("TextLabel", frame)
-toggleButton.Size = UDim2.new(1, 0, 0.3, 0)
-toggleButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+toggleButton.Size = UDim2.new(1, 0, 0.4, 0)
+toggleButton.BackgroundTransparency = 1
 toggleButton.TextColor3 = Color3.new(1, 1, 1)
-toggleButton.Font = Enum.Font.SourceSans
-toggleButton.TextSize = 16
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.TextSize = 14
 toggleButton.TextWrapped = true
 
--- Slider for range control
 local rangeSlider = Instance.new("Frame", frame)
-rangeSlider.Size = UDim2.new(1, -20, 0.3, 0)
-rangeSlider.Position = UDim2.new(0, 10, 0.3, 10)
-rangeSlider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-rangeSlider.BorderSizePixel = 0
+rangeSlider.Size = UDim2.new(0.9, 0, 0.1, 0)
+rangeSlider.Position = UDim2.new(0.05, 0, 0.5, 0)
+rangeSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 
 local sliderButton = Instance.new("Frame", rangeSlider)
-sliderButton.Size = UDim2.new(0, 10, 1, 0)
-sliderButton.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+sliderButton.Size = UDim2.new(0, 15, 1.5, 0)
+sliderButton.AnchorPoint = Vector2.new(0.5, 0.15)
+sliderButton.Position = UDim2.new(range/300, 0, 0, 0) -- Scaled to 300 max
+sliderButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 
 local sliderValue = Instance.new("TextLabel", frame)
 sliderValue.Size = UDim2.new(1, 0, 0.2, 0)
-sliderValue.Position = UDim2.new(0, 0, 0.6, 0)
+sliderValue.Position = UDim2.new(0, 0, 0.7, 0)
 sliderValue.BackgroundTransparency = 1
-sliderValue.TextColor3 = Color3.fromRGB(255, 255, 255)
-sliderValue.Font = Enum.Font.SourceSans
+sliderValue.TextColor3 = Color3.new(1, 1, 1)
 sliderValue.TextSize = 16
-sliderValue.Text = "Range: " .. range
+sliderValue.Text = "FOV Radius: " .. range
 
--- Flag to track if the slider is being dragged
+-- Slider Logic
 local isDragging = false
-
--- Update range when the slider is moved
 sliderButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDragging = true
-    end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then isDragging = true end
 end)
-
-sliderButton.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDragging = false
-    end
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then isDragging = false end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
     if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local newPos = math.clamp((input.Position.X - rangeSlider.AbsolutePosition.X) / rangeSlider.AbsoluteSize.X, 0, 1)
-        sliderButton.Position = UDim2.new(newPos, 0, 0, 0)
-        range = math.floor(newPos * 100) -- Update the range based on slider position
-        sliderValue.Text = "Range: " .. range
+        local relativeX = math.clamp((input.Position.X - rangeSlider.AbsolutePosition.X) / rangeSlider.AbsoluteSize.X, 0, 1)
+        sliderButton.Position = UDim2.new(relativeX, 0, 0, 0)
+        range = math.floor(relativeX * 300) -- Max FOV of 300
+        sliderValue.Text = "FOV Radius: " .. range
     end
 end)
 
--- Update the UI text based on the current toggle state
+-- UI Text Update
 local function updateUIText()
-    if aimAssistEnabled == false and ignoreSameTeam == false then
-        toggleButton.Text = "Press L to turn on Aim Assist\nPress T to turn on Same Team Ignore"
-    elseif aimAssistEnabled == true and ignoreSameTeam == false then
-        toggleButton.Text = "Press L to turn off Aim Assist\nPress T to turn on Same Team Ignore"
-    elseif aimAssistEnabled == true and ignoreSameTeam == true then
-        toggleButton.Text = "Press L to turn off Aim Assist\nPress T to turn off Same Team Ignore"
-    end
+    local assistText = aimAssistEnabled and "ON" or "OFF"
+    local teamText = ignoreSameTeam and "ON" or "OFF"
+    toggleButton.Text = string.format("AIM ASSIST: %s [L]\nIGNORE TEAMS: %s [T]\nHIDE MENU: [P]", assistText, teamText)
 end
 
--- Continuously update the UI text based on the current toggle state
+-- Input Handling
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.L then
+        aimAssistEnabled = not aimAssistEnabled
+    elseif input.KeyCode == Enum.KeyCode.T then
+        ignoreSameTeam = not ignoreSameTeam
+    elseif input.KeyCode == Enum.KeyCode.P then
+        uiVisible = not uiVisible
+        screenGui.Enabled = uiVisible
+    end
+end)
+
+-- Main Loop Connections
 RunService.RenderStepped:Connect(function()
+    update()
     updateUIText()
 end)
